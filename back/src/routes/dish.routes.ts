@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { prisma } from '../prisma.js';
-import { dishCreateSchema, dishUpdateSchema } from '../validators/dish.js';
+import { prisma } from '../prisma';
+import { dishCreateSchema, dishUpdateSchema } from '../validators/dish';
+import { publishMessage } from '../ably';
 
 export const router = Router();
 
@@ -23,8 +24,11 @@ router.post('/', async (req, res) => {
   const parsed = dishCreateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
 
-  const created = await prisma.prato.create({ data: parsed.data });
+  const created = await prisma.prato.create({ data: parsed.data, include: { categoria: true } });
   res.status(201).json(created);
+
+  // Notificar clientes via Ably
+  publishMessage('menu', 'dish-added', created);
 });
 
 router.put('/:id', async (req, res) => {
@@ -32,8 +36,11 @@ router.put('/:id', async (req, res) => {
   const parsed = dishUpdateSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   try {
-    const updated = await prisma.prato.update({ where: { id }, data: parsed.data });
+    const updated = await prisma.prato.update({ where: { id }, data: parsed.data, include: { categoria: true } });
     res.json(updated);
+
+    // Notificar clientes via Ably
+    publishMessage('menu', 'dish-updated', updated);
   } catch {
     res.status(404).json({ error: 'Prato não encontrado' });
   }
@@ -44,6 +51,9 @@ router.delete('/:id', async (req, res) => {
   try {
     await prisma.prato.delete({ where: { id } });
     res.status(204).send();
+
+    // Notificar clientes via Ably
+    publishMessage('menu', 'dish-deleted', { id });
   } catch {
     res.status(404).json({ error: 'Prato não encontrado' });
   }

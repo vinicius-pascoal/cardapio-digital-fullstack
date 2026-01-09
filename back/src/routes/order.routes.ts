@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { prisma } from '../prisma.js';
-import { orderCreateSchema, orderUpdateSchema } from '../validators/order.js';
-import { broadcastSSE } from '../sse.js';
+import { prisma } from '../prisma';
+import { orderCreateSchema, orderUpdateSchema } from '../validators/order';
+import { broadcastSSE } from '../sse';
+import { publishMessage } from '../ably';
 
 export const router = Router();
 
@@ -45,8 +46,10 @@ router.post('/', async (req, res) => {
 
   const payload = { ...created, total };
   res.status(201).json(payload);
-  // Notificar clientes SSE
+
+  // Notificar clientes via SSE e Ably
   broadcastSSE('new-order', payload);
+  publishMessage('orders', 'new-order', payload);
 });
 
 router.put('/:id', async (req, res) => {
@@ -75,7 +78,10 @@ router.put('/:id', async (req, res) => {
     const total = updated.itens.reduce((sum, item) => sum + Number(item.prato.preco) * item.quantidade, 0);
     const payload = { ...updated, total };
     res.json(payload);
+
+    // Notificar clientes via SSE e Ably
     broadcastSSE('order-update', payload);
+    publishMessage('orders', 'order-update', payload);
   } catch {
     res.status(404).json({ error: 'Pedido não encontrado' });
   }
@@ -86,7 +92,10 @@ router.delete('/:id', async (req, res) => {
   try {
     await prisma.pedido.delete({ where: { id } });
     res.status(204).send();
+
+    // Notificar clientes via SSE e Ably
     broadcastSSE('order-delete', { id });
+    publishMessage('orders', 'order-delete', { id });
   } catch {
     res.status(404).json({ error: 'Pedido não encontrado' });
   }

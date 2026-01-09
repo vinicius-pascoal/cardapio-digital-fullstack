@@ -12,10 +12,11 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
     networks:
       - cardapio_network
 
@@ -46,11 +47,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3000
+        NEXT_PUBLIC_ABLY_KEY: ${ABLY_KEY}
     container_name: cum_cardapio_frontend
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_URL: http://api:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3000
       NEXT_PUBLIC_ABLY_KEY: ${ABLY_KEY}
       NODE_ENV: development
     ports:

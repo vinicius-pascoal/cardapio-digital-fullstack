@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { prisma } from '../prisma.js';
-import { categoryCreateSchema, categoryUpdateSchema } from '../validators/category.js';
+import { prisma } from '../prisma';
+import { categoryCreateSchema, categoryUpdateSchema } from '../validators/category';
+import { publishMessage } from '../ably';
 
 export const router = Router();
 
@@ -21,6 +22,9 @@ router.post('/', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
   const created = await prisma.categoria.create({ data: parsed.data });
   res.status(201).json(created);
+
+  // Notificar clientes via Ably
+  publishMessage('menu', 'category-added', created);
 });
 
 router.put('/:id', async (req, res) => {
@@ -30,6 +34,9 @@ router.put('/:id', async (req, res) => {
   try {
     const updated = await prisma.categoria.update({ where: { id }, data: parsed.data });
     res.json(updated);
+
+    // Notificar clientes via Ably
+    publishMessage('menu', 'category-updated', updated);
   } catch {
     res.status(404).json({ error: 'Categoria não encontrada' });
   }
@@ -40,6 +47,9 @@ router.delete('/:id', async (req, res) => {
   try {
     await prisma.categoria.delete({ where: { id } });
     res.status(204).send();
+
+    // Notificar clientes via Ably
+    publishMessage('menu', 'category-deleted', { id });
   } catch {
     res.status(404).json({ error: 'Categoria não encontrada' });
   }
